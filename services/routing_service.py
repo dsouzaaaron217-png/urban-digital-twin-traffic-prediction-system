@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import requests
 
 from ml.predict import get_predictor
+from services.tomtom_quota import tomtom_get
 
 
 # In-memory cache for flow segments: (lat_round, lon_round) -> (timestamp, data)
@@ -41,7 +42,7 @@ def _fetch_tomtom_flow(
 
     url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
     try:
-        resp = requests.get(
+        resp = tomtom_get("traffic_flow", 
             url,
             params={"point": f"{lat},{lon}", "key": api_key},
             timeout=8,
@@ -117,7 +118,7 @@ def calculate_routes_tomtom(
         params["departAt"] = depart_at
 
     try:
-        response = requests.get(url, params=params, timeout=15)
+        response = tomtom_get("routing", url, params=params, timeout=15)
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
@@ -146,7 +147,7 @@ def calculate_routes_tomtom(
             }
             if depart_at:
                 shortest_params["departAt"] = depart_at
-            s_resp = requests.get(url, params=shortest_params, timeout=10)
+            s_resp = tomtom_get("routing", url, params=shortest_params, timeout=10)
             if s_resp.status_code == 200:
                 s_data = s_resp.json()
                 s_routes = s_data.get("routes", [])

@@ -10,7 +10,7 @@ def test_haversine_distance():
     assert 3.0 < dist < 6.0
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_success(mock_get):
     # Mock successful TomTom calculateRoute response with 2 routes
     mock_resp = MagicMock()
@@ -88,7 +88,7 @@ def test_calculate_routes_success(mock_get):
     assert len(r1["segments"]) > 0
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_shortest_preference(mock_get):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -145,7 +145,7 @@ def test_missing_api_key():
         )
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_routing_provider_error(mock_get):
     import requests
     mock_get.side_effect = requests.RequestException("TomTom Gateway Timeout")
@@ -160,7 +160,7 @@ def test_routing_provider_error(mock_get):
         )
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_tomtom_zero_delay_computed_correctly(mock_get):
     """
     When TomTom returns trafficDelayInSeconds=0 but travelTimeInSeconds > noTrafficTravelTimeInSeconds,
@@ -203,7 +203,7 @@ def test_calculate_routes_tomtom_zero_delay_computed_correctly(mock_get):
     assert r["traffic_available"] is True
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_zero_delay_ideal_flow(mock_get):
     """When travel time equals free flow time, delay should be 0 and congestion 0%."""
     mock_resp = MagicMock()
@@ -242,7 +242,7 @@ def test_calculate_routes_zero_delay_ideal_flow(mock_get):
     assert r["traffic_available"] is True
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_threshold_classifications(mock_get):
     """
     Test application thresholds:
@@ -311,7 +311,7 @@ def test_calculate_routes_threshold_classifications(mock_get):
     assert routes[2]["traffic_condition"] == "Heavy Congestion"
 
 
-@patch("services.routing_service.requests.get")
+@patch("services.routing_service.tomtom_get")
 def test_calculate_routes_missing_traffic_data(mock_get):
     """When TomTom does not return free-flow time, traffic should be marked unavailable."""
     mock_resp = MagicMock()

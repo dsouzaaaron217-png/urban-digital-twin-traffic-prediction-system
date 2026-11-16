@@ -286,6 +286,19 @@ TOMTOM_API_KEY=your_actual_tomtom_api_key_here
 4. Copy the generated API key into your local `.env` file.
 *(TomTom's free tier provides thousands of daily queries, sufficient for continuous local development.)*
 
+### TomTom Monthly Quota Guard
+
+Backend TomTom GET requests reserve usage through a local SQLite quota guard before sending. Reservations count even when a request fails, so uncertain outcomes cannot silently exceed the limit. Counters are stored in `data/tomtom_usage.sqlite3` by UTC month.
+
+| Product | Monthly limit | Initial usage | Status |
+| :--- | ---: | ---: | :--- |
+| Traffic Flow | 20,000 | 241 | Enabled |
+| Search and geocoding | 2,500 | 0 | Enabled |
+| Routing | 20,000 | Unverified | Disabled |
+| Traffic Maps | 20,000 | Unverified | Disabled |
+
+The Traffic Flow and Search starting usage is seeded when the quota database is first initialized. New UTC months start with fresh counters. Routing and Traffic Maps remain blocked until their starting usage is checked in the TomTom portal and the local baseline is configured. OpenStreetMap Nominatim requests do not use the TomTom quota.
+
 ### Frontend Configuration (`fronted/.env`)
 Navigate to `fronted/` and configure `.env`:
 ```powershell
@@ -338,7 +351,7 @@ For a full endpoint specification, see [API.md](docs/API.md).
 ## 12. Automated Testing & Production Build
 
 ### Backend Pytest Suite
-Run the full backend test suite (55 tests covering routing calculations, data cleaning, analytics, and ML validation):
+Run the backend pytest suite, including routing calculations, data cleaning, analytics, and ML validation:
 ```powershell
 cd C:\Projects\TrafficWatch
 .venv\Scripts\pytest.exe -v
@@ -347,6 +360,13 @@ cd C:\Projects\TrafficWatch
 Run dedicated freshness and retraining safeguard tests:
 ```powershell
 .venv\Scripts\pytest.exe tests/test_freshness_and_retraining.py -v
+```
+
+### TomTom Quota and Routing Tests
+
+Run the offline quota and routing tests. HTTP requests are mocked; no live TomTom calls are made:
+```powershell
+python -m pytest -q tests/test_tomtom_quota.py tests/test_routing_service.py
 ```
 
 ### Frontend Vitest Suite
@@ -392,7 +412,8 @@ TrafficWatch/
 │   ├── live_traffic.csv      # Raw append-only telemetry log
 │   ├── cleaned_traffic.csv   # Deduplicated canonical historical dataset
 │   ├── monitored_locations.json # Target coordinates monitored by background scheduler
-│   └── saved_locations.json  # Seed bookmarked user locations
+│   ├── saved_locations.json  # Seed bookmarked user locations
+│   └── tomtom_usage.sqlite3  # Runtime monthly TomTom quota counters
 ├── docs/                     # Detailed architectural and API documentation
 │   ├── ARCHITECTURE.md       # Deep dive into system design and concurrency
 │   ├── DATA_PIPELINE.md      # Data ingestion, schema, and deduplication specs
@@ -410,15 +431,17 @@ TrafficWatch/
 ├── services/                 # Backend business logic services
 │   ├── analytics_service.py  # Aggregated metrics, heatmaps, trends, and CSV export
 │   ├── data_pipeline.py      # Idempotent validation, normalization, and deduplication
-│   └── routing_service.py    # TomTom routing integration and delay calculations
-├── tests/                    # Pytest test suite (55 tests)
+│   ├── routing_service.py    # TomTom routing integration and delay calculations
+│   └── tomtom_quota.py       # Monthly quota reservation and key redaction
+├── tests/                    # Pytest test suite
 │   ├── test_analytics.py
 │   ├── test_api_endpoints.py
 │   ├── test_data_pipeline.py
 │   ├── test_freshness_and_retraining.py
 │   ├── test_ml_pipeline.py
 │   ├── test_predictions_api.py
-│   └── test_routing_service.py
+│   ├── test_routing_service.py
+│   └── test_tomtom_quota.py
 ├── scripts/                  # Data science and inspection helper scripts
 │   ├── compare_corridors.py
 │   ├── evaluate_models.py
@@ -481,6 +504,7 @@ TrafficWatch/
 
 - **Credential Isolation**: API keys are loaded solely by the Python backend via `python-dotenv`. TomTom API keys are never bundled, served, or exposed to the client browser.
 - **Git Exclusions**: `.env`, `.venv/`, `node_modules/`, and local test caches are strictly excluded in `.gitignore`.
+- **TomTom Error Redaction**: API keys are removed from sanitized TomTom request errors and response URLs.
 - **Sanitized Coordinates**: Monitored coordinates in `data/monitored_locations.json` and seed saved locations correspond strictly to public municipal landmarks and major intersections. No private personal coordinates are tracked.
 - **Reporting Vulnerabilities**: If you discover a security vulnerability, please do not open a public issue. Contact the repository maintainer directly via email.
 

@@ -72,7 +72,7 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [version, setVersion] = useState(0);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
   const [monitoredLocations, setMonitoredLocations] = useState<MonitoredLocation[]>([]);
   const [saved, setSaved] = useState<Location[]>([]);

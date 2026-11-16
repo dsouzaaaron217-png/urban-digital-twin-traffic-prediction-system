@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from services.routing_service import calculate_routes_tomtom, _fetch_tomtom_flow
+from services.tomtom_quota import tomtom_get
 from ml.predict import get_predictor
 from services.data_pipeline import (
     process_new_reading,
@@ -49,6 +50,9 @@ load_dotenv()
 # -----------------------------
 
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
+ENABLE_TOMTOM_SCHEDULER = (
+    os.getenv("ENABLE_TOMTOM_SCHEDULER", "false").lower() == "true"
+)
 
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -220,7 +224,7 @@ def collect_traffic_automatically():
         longitude = location["longitude"]
 
         try:
-            response = requests.get(
+            response = tomtom_get("traffic_flow", 
                 url,
                 params={
                     "point": f"{latitude},{longitude}",
@@ -310,32 +314,35 @@ def collect_traffic_automatically():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Collect one reading shortly after the server starts.
-    scheduler.add_job(
-        collect_traffic_automatically,
-        trigger="date",
-        id="initial_traffic_collection",
-        replace_existing=True,
-    )
+    if ENABLE_TOMTOM_SCHEDULER and TOMTOM_API_KEY:
+        print("TomTom automatic collection: ENABLED")
 
-    # Continue collecting every five minutes.
-    scheduler.add_job(
-        collect_traffic_automatically,
-        trigger="interval",
-        minutes=5,
-        id="traffic_collection",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-    )
+        scheduler.add_job(
+            collect_traffic_automatically,
+            trigger="date",
+            id="initial_traffic_collection",
+            replace_existing=True,
+        )
 
-    scheduler.start()
+        scheduler.add_job(
+            collect_traffic_automatically,
+            trigger="interval",
+            minutes=5,
+            id="traffic_collection",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        scheduler.start()
+    else:
+        print("TomTom automatic collection: DISABLED")
 
     try:
         yield
     finally:
-        scheduler.shutdown(wait=False)
-
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
 
 app = FastAPI(
     title="TrafficWatch API",
@@ -608,7 +615,7 @@ def search_location(q: str = Query(..., min_length=1, max_length=100)):
     if TOMTOM_API_KEY and len(cleaned_q) >= 2:
         try:
             tomtom_url = f"https://api.tomtom.com/search/2/search/{requests.utils.quote(cleaned_q)}.json"
-            tomtom_resp = requests.get(
+            tomtom_resp = tomtom_get("search", 
                 tomtom_url,
                 params={
                     "key": TOMTOM_API_KEY,
@@ -742,7 +749,7 @@ def get_live_traffic(
     )
 
     try:
-        response = requests.get(
+        response = tomtom_get("traffic_flow", 
             url,
             params={
                 "point": f"{latitude},{longitude}",
@@ -826,7 +833,7 @@ def get_traffic_segments(
     )
 
     try:
-        response = requests.get(
+        response = tomtom_get("traffic_flow", 
             url,
             params={
                 "point": f"{latitude},{longitude}",
@@ -895,7 +902,7 @@ def _get_road_name(lat: float, lon: float, frc: Optional[str] = None) -> str:
 
     url = f"https://api.tomtom.com/search/2/reverseGeocode/{lat},{lon}.json"
     try:
-        resp = requests.get(url, params={"key": TOMTOM_API_KEY}, timeout=4)
+        resp = tomtom_get("search", url, params={"key": TOMTOM_API_KEY}, timeout=4)
         if resp.status_code == 200:
             addr = resp.json().get("addresses", [{}])[0].get("address", {})
             street = addr.get("streetName") or addr.get("street")
@@ -922,6 +929,10 @@ def get_nearby_traffic_segments(
     latitude: float = Query(default=18.5204, ge=-90, le=90),
     longitude: float = Query(default=73.8567, ge=-180, le=180),
 ):
+        # Keep multi-point TomTom requests disabled by default.
+    if os.getenv("ENABLE_TOMTOM_NEARBY_SEGMENTS", "false").lower() != "true":
+        return {"segments": []}
+    
     if not TOMTOM_API_KEY:
         raise HTTPException(
             status_code=500,
@@ -949,7 +960,7 @@ def get_nearby_traffic_segments(
             "flowSegmentData/absolute/10/json"
         )
         try:
-            response = requests.get(
+            response = tomtom_get("traffic_flow", 
                 url,
                 params={
                     "point": f"{point_lat},{point_lon}",
@@ -1283,7 +1294,7 @@ def get_traffic_tile(z: int, x: int, y: int):
     )
 
     try:
-        response = requests.get(
+        response = tomtom_get("traffic_maps", 
             url,
             params={"key": TOMTOM_API_KEY},
             timeout=15,
