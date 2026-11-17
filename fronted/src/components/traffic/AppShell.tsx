@@ -3,13 +3,11 @@ import { Link, useLocation } from '@tanstack/react-router';
 import {
   Activity,
   LayoutDashboard,
-  Map,
   ChartNoAxesCombined,
   BrainCircuit,
   Flame,
   MapPin,
   Info,
-  Route as RouteIcon,
   ChevronRight,
   Sun,
   Moon,
@@ -23,8 +21,6 @@ import { LocationSearch } from './LocationSearch';
 
 const navigation = [
   { to: '/' as const, title: 'Dashboard', icon: LayoutDashboard },
-  { to: '/route-planner' as const, title: 'Route Planner', icon: RouteIcon },
-  { to: '/live-traffic' as const, title: 'Live Traffic', icon: Map },
   { to: '/analytics' as const, title: 'Traffic Analytics', icon: ChartNoAxesCombined },
   { to: '/predictions' as const, title: 'Predictions', icon: BrainCircuit },
   { to: '/hotspots' as const, title: 'Congestion Hotspots', icon: Flame },
